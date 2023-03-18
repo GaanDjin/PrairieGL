@@ -36,6 +36,8 @@ And finally there is a hack if your render pipline is falling on the wrong GPU (
         GetPlatformIDs(0, null, out int num_platforms);
 ```
 
+Oh. And a slight gotcha In the OpenGL.Shader constructor "includeCommon" should probably be set to false by default as it's kind of broken right now. I'm still working out adding lighting and bones to it. It does have a base framework for layout locations and a material. If you set it to false you can pass a full vertex and fragment shader directly. As is the way in the tutorials. 
+
 I've included Vulkan Bindings but I can't get past Tutorial #04 
 I can't get past vkCreateDevice. It just gives me a nonsensical error:
 "Typelib export: Type library is not registered. (0x80131165)'"
