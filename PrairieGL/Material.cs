@@ -62,9 +62,9 @@ namespace PrairieGL
         public Material()
         {
 			Shininess = 0.3f;
-			AmbientColour = new Vector3(0,0,0);
-			DiffuseColour = new Vector3(0, 0, 0);
-			SpecularColour = new Vector3(0, 0, 0);
+			AmbientColour = new Vector3(0.5f, 0.5f, 0.5f);
+			DiffuseColour = new Vector3(0.5f, 0.5f, 0.5f);
+			SpecularColour = new Vector3(0.1f, 0.1f, 0.1f);
 
 			DiffuseTexture = new Texture(new MemoryStream(DefaultTexture));
 			NormalTexture = new Texture(new MemoryStream(DefaultTexture));
