@@ -44,7 +44,7 @@ I can't get past vkCreateDevice. It just gives me a nonsensical error:
 Windows 10 Home, 21H1 OS Build 19043.2364
 
 Here's a sample screenshot of a current project I'm working on....
-![Sample Screenshot](Images/TestPrairieCL_GgdqWSjJeK.png)
+![Sample Screenshot](Images/TestPrairieCL_FU8rtb0jUS..png)
 Don't mind the white trees... Still working on getting lighting to work. 
 
 As always, if you find a problem please let me know.
