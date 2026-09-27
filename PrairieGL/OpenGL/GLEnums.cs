@@ -741,7 +741,62 @@ namespace PrairieGL.OpenGL
 
         /* Extensions Check for compatible (GL.HasExtenstion) before use! */
 
-        GL_DEBUG_OUTPUT_SYNCHRONOUS_ARB = 0x8242
+        GL_DEBUG_OUTPUT_SYNCHRONOUS_ARB = 0x8242,
+        GL_ALPHA_TEST = 0x0BC0,
+
+        GL_FOG      =                      0x0B60 ,
+        GL_LIGHTING                 =      0x0B50 ,
+        GL_TEXTURE_1D =0x0DE0,
+        GL_TEXTURE_2D =0x0DE1,
+        GL_LINE_STIPPLE = 0x0B24,
+        GL_POLYGON_STIPPLE = 0x0B42,
+        GL_INDEX_LOGIC_OP = 0x0BF1,
+        GL_CLIP_PLANE0 = 0x3000,
+        GL_CLIP_PLANE1 = 0x3001,
+        GL_CLIP_PLANE2 = 0x3002,
+        GL_CLIP_PLANE3 = 0x3003,
+        GL_CLIP_PLANE4 = 0x3004,
+        GL_CLIP_PLANE5 = 0x3005,
+        GL_LIGHT0 = 0x4000,
+        GL_LIGHT1 = 0x4001,
+        GL_LIGHT2 = 0x4002,
+        GL_LIGHT3 = 0x4003,
+        GL_LIGHT4 = 0x4004,
+        GL_LIGHT5 = 0x4005,
+        GL_LIGHT6 = 0x4006,
+        GL_LIGHT7 = 0x4007,
+        GL_TEXTURE_GEN_S = 0x0C60,
+        GL_TEXTURE_GEN_T = 0x0C61,
+        GL_TEXTURE_GEN_R = 0x0C62,
+        GL_TEXTURE_GEN_Q = 0x0C63,
+        GL_MAP1_VERTEX_3 = 0x0D97,
+        GL_MAP1_VERTEX_4 = 0x0D98,
+        GL_MAP1_COLOR_4 = 0x0DB0,
+        GL_MAP1_INDEX = 0x0D91,
+        GL_MAP1_NORMAL = 0x0D92,
+        GL_MAP1_TEXTURE_COORD_1 = 0x0D93,
+        GL_MAP1_TEXTURE_COORD_2 = 0x0D94,
+        GL_MAP1_TEXTURE_COORD_3 = 0x0D95,
+        GL_MAP1_TEXTURE_COORD_4 = 0x0D96,
+        GL_MAP2_VERTEX_3 = 0x0DB7,
+        GL_MAP2_VERTEX_4 = 0x0DB8,
+        GL_MAP2_COLOR_4 = 0x0DB0,
+        GL_MAP2_INDEX = 0x0DB1,
+        GL_MAP2_NORMAL = 0x0DB2,
+        GL_MAP2_TEXTURE_COORD_1 = 0x0DB3,
+        GL_MAP2_TEXTURE_COORD_2 = 0x0DB4,
+        GL_MAP2_TEXTURE_COORD_3 = 0x0DB5,
+        GL_MAP2_TEXTURE_COORD_4 = 0x0DB6,
+        GL_POINT_SMOOTH = 0x0B10,
+        GL_COLOR_MATERIAL = 0x0B57,
+        GL_NORMALIZE = 0x0BA1,
+        GL_AUTO_NORMAL = 0x0D80,
+        GL_VERTEX_ARRAY = 0x8074,
+        GL_NORMAL_ARRAY = 0x8075,
+        GL_COLOR_ARRAY = 0x8076,
+        GL_INDEX_ARRAY = 0x8077,
+        GL_TEXTURE_COORD_ARRAY = 0x8078,
+        GL_EDGE_FLAG_ARRAY = 0x8079
     }
 
     /// <summary>
@@ -868,6 +923,8 @@ namespace PrairieGL.OpenGL
     public enum ImagePixelFormats
     {
         GL_RED = 0x1903,
+        GL_GREEN = 0x1904,
+        GL_BLUE = 0x1905,
         GL_RG = 0x8227,
         GL_RGB = 0x1907,
         GL_BGR = 0x80E0,
@@ -3154,5 +3211,44 @@ namespace PrairieGL.OpenGL
         /// is returned if any framebuffer attachment is layered, and any populated attachment is not layered, or if all populated color attachments are not from textures of the same target.
         /// </summary>
         GL_FRAMEBUFFER_INCOMPLETE_LAYER_TARGETS = 0x8DA8
+    }
+
+    public enum GLBlendFactors : uint
+    {
+        GL_ZERO = 0x0000,
+        GL_ONE = 0x0001,
+        GL_SRC_COLOR = 0x0300,
+        GL_ONE_MINUS_SRC_COLOR = 0x0301,
+        GL_SRC_ALPHA = 0x0302,
+        GL_ONE_MINUS_SRC_ALPHA = 0x0303,
+        GL_DST_ALPHA = 0x0304,
+        GL_ONE_MINUS_DST_ALPHA = 0x0305,
+        GL_DST_COLOR = 0x0306,
+        GL_ONE_MINUS_DST_COLOR = 0x0307,
+        GL_SRC_ALPHA_SATURATE = 0x0308,
+        GL_CONSTANT_COLOR = 0x8001,
+        GL_ONE_MINUS_CONSTANT_COLOR = 0x8002,
+        GL_CONSTANT_ALPHA = 0x8003,
+        GL_ONE_MINUS_CONSTANT_ALPHA = 0x8004,
+        GL_SRC1_COLOR = 0x88F9,
+        GL_ONE_MINUS_SRC1_COLOR = 0x88FA,
+        GL_SRC1_ALPHA = 0x8589,
+        GL_ONE_MINUS_SRC1_ALPHA = 0x88FB,
+    }
+
+    public enum GLBlendEquations : uint
+    {
+        GL_FUNC_ADD = 0x8006,
+        GL_MIN = 0x8007,
+        GL_MAX = 0x8008,
+        GL_FUNC_SUBTRACT = 0x800A,
+        GL_FUNC_REVERSE_SUBTRACT = 0x800B,
+    }
+
+    public enum CullModes
+    {
+        GL_FRONT = 0x0404,
+        GL_BACK = 0x0405,
+        GL_FRONT_AND_BACK = 0x0408
     }
 }

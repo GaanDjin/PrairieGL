@@ -58,7 +58,8 @@ namespace PrairieGL.OpenGL
              GLDataTypes type,
      uint indices);
 
-        public delegate void glDeleteBuffers(int n, uint[] buffers);
+        [UnmanagedFunctionPointer(CallingConvention.Winapi)]
+        public delegate void glDeleteBuffers(int n, ref uint buffers);
 
         public delegate void glDeleteVertexArrays(int n, uint[] arrays);
 
@@ -172,6 +173,9 @@ namespace PrairieGL.OpenGL
 
         public delegate void glGetnUniformdv(uint program, int location, int bufSize, ref double[] parameters);
 
+        public delegate bool glIsEnabled(GLCapabilities cap); 
+        public delegate bool glIsEnabledi(GLCapabilities cap);
+
         public delegate void glEnable(GLCapabilities cap);
 
         public delegate void glDisable(GLCapabilities cap);
@@ -248,6 +252,10 @@ namespace PrairieGL.OpenGL
         public delegate void glDrawElements<T>(RenderModes mode, int count, DrawIndexTypes type, T[] indices) where T: unmanaged;
 
         public delegate void glDrawElements(RenderModes mode, int count, DrawIndexTypes type, IntPtr indices);
+
+        public delegate void glDrawElementsInstanced<T>(RenderModes mode, int count, DrawIndexTypes type, T[] indices, int instancecount) where T : unmanaged;
+
+        public delegate void glDrawElementsInstanced(RenderModes mode, int count, DrawIndexTypes type, IntPtr indices, int instancecount);
 
         public delegate GLErrors glGetError();
 
@@ -464,5 +472,36 @@ namespace PrairieGL.OpenGL
 
         public delegate int glFenceSync(uint condition, uint flags);
 
+        public delegate void glBlendEquation(GLBlendEquations mode);
+        public delegate void glBlendEquationi(uint buf, GLBlendEquations mode);
+        public delegate void glBlendFuncSeparate(GLBlendFactors srcRGB, GLBlendFactors dstRGB, GLBlendFactors srcAlpha, GLBlendFactors dstAlpha);
+        public delegate void glBlendEquationSeparate(GLBlendEquations modeRGB, GLBlendEquations modeAlpha);
+        public delegate void glScissor(int x, int y, int width, int height);
+
+        // glDrawElementsBaseVertex needs the offset as IntPtr (or void*) since it's
+        // a byte offset into the currently-bound index buffer, NOT a real pointer:
+        public delegate void glDrawElementsBaseVertex(RenderModes mode, int count, GLDataTypes type,
+                                                            IntPtr indices, int basevertex);
+
+        public delegate void glReadPixels(
+                        int x,
+                        int y,
+                        int width,
+                        int height,
+                        ImagePixelFormats format,
+                        ImagePixelDataTypes type,
+                        IntPtr data);
+
+        public delegate void glReadnPixels(
+                        int x,
+                        int y,
+                        int width,
+                        int height,
+                        ImagePixelFormats format,
+                        ImagePixelDataTypes type,
+                        int bufSize,
+                        IntPtr data);
+
+        public delegate void glCullFace(CullModes mode);
     }
 }

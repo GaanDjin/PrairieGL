@@ -505,7 +505,48 @@ namespace PrairieGL.OpenGL
 
         public static  IntPtr glFenceSyncPtr = IntPtr.Zero; //Wgl.GetProcAddress("glFenceSync");
         public static glFenceSync glFenceSyncDlg = null;
-       //Marshal.GetDelegateForFunctionPointer<glFenceSync>(glFenceSyncPtr);
+        //Marshal.GetDelegateForFunctionPointer<glFenceSync>(glFenceSyncPtr);
 
+
+        public static IntPtr glIsEnabledPtr = IntPtr.Zero;
+        public static glIsEnabled glIsEnabledDlg = null;
+
+        public static IntPtr glIsEnablediPtr = IntPtr.Zero;
+        public static glIsEnabledi glIsEnablediDlg = null;
+
+
+        public static IntPtr glBlendEquationPtr = IntPtr.Zero;
+        public static glBlendEquation glBlendEquationDlg = null;
+
+        public static IntPtr glBlendEquationiPtr = IntPtr.Zero;
+        public static glBlendEquationi glBlendEquationiDlg = null;
+
+        
+
+        public static IntPtr glBlendFuncSeparatePtr = IntPtr.Zero;
+        public static glBlendFuncSeparate glBlendFuncSeparateDlg = null;
+        
+        public static IntPtr glBlendEquationSeparatePtr = IntPtr.Zero;
+        public static glBlendEquationSeparate glBlendEquationSeparateDlg = null;
+        
+        public static IntPtr glScissorPtr = IntPtr.Zero;
+        public static glScissor glScissorDlg = null;
+
+        // glDrawElementsBaseVertex needs the offset as IntPtr (or void*) since it's
+        // a byte offset into the currently-bound index buffer, NOT a real pointer:
+        public static IntPtr glDrawElementsBaseVertexPtr = IntPtr.Zero;
+        public static glDrawElementsBaseVertex glDrawElementsBaseVertexDlg = null;
+
+        public static IntPtr glDrawElementsInstancedPtr = IntPtr.Zero;
+        public static glDrawElementsInstanced glDrawElementsInstancedDlg = null;
+
+        public static IntPtr glReadPixelsPtr = IntPtr.Zero;
+        public static glReadPixels glReadPixelsDlg = null;
+
+        public static IntPtr glReadnPixelsPtr = IntPtr.Zero;
+        public static glReadnPixels glReadnPixelsDlg = null;
+
+        public static IntPtr glCullFacePtr = IntPtr.Zero;
+        public static glCullFace glCullFaceDlg = null;
     }
 }

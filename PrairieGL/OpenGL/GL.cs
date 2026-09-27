@@ -1,6 +1,8 @@
 ﻿using PrairieGL.Utils;
+using System.Drawing;
 using System.Numerics;
 using System.Runtime.InteropServices;
+using System.Runtime.Intrinsics.X86;
 using static PrairieGL.OpenGL.GLDelegates;
 using static PrairieGL.OpenGL.GLFunctionPointers;
 
@@ -19,6 +21,13 @@ namespace PrairieGL.OpenGL
     /// </summary>
     public class GL
     {
+        public static GLResourceTracker ResourceTracker { get; } = new GLResourceTracker();
+
+        private static uint currentVBO = 0;
+        private static uint currentTexture = 0;
+
+        private static uint currentRenderBuffer = 0;
+
         ///TODO: Test Wgl.GetProcAddress for entry point, and then fallback to DLLImport call.
 
         // This is a hack. DLLImport and call tells NVIDIA we want to render OpenGL using the better nvidia card if it exists. 
@@ -28,6 +37,21 @@ namespace PrairieGL.OpenGL
         static readonly int platformids = GetPlatformIDs(0, null, out int num_platforms);
 
         #region DLLImports
+
+
+        [DllImport("opengl32.dll", EntryPoint = "glPushMatrix", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        public static extern void PushMatrix();
+
+
+        [DllImport("opengl32.dll", EntryPoint = "glPopMatrix", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        public static extern void PopMatrix();
+
+        [DllImport("opengl32.dll", EntryPoint = "glFlush", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        public static extern void Flush();
+
+        [DllImport("opengl32.dll", EntryPoint = "glLoadIdentity", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        public static extern void LoadIdentity();
+
 
 
         /// <summary>
@@ -103,6 +127,34 @@ namespace PrairieGL.OpenGL
         //    glDrawArraysDlg(mode, first, count);
         //}
 
+        [DllImport("opengl32.dll", EntryPoint = "glIsEnabled", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        public static extern bool IsEnabled(GLCapabilities cap);
+        //{
+
+        //    if (glIsEnabledPtr == IntPtr.Zero)
+        //    {
+        //        glIsEnabledPtr = Wgl.GetProcAddress("glIsEnabled");
+        //        glIsEnabledDlg =
+        //       Marshal.GetDelegateForFunctionPointer<glIsEnabled>(glIsEnabledPtr);
+        //    }
+
+        //    return glIsEnabledDlg(cap);
+        //}
+
+        [DllImport("opengl32.dll", EntryPoint = "glIsEnabledi", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        public static extern bool IsEnabledi(GLCapabilities cap, uint index);
+        //{
+
+        //    if (glIsEnablediPtr == IntPtr.Zero)
+        //    {
+        //        glIsEnablediPtr = Wgl.GetProcAddress("glIsEnabledi");
+        //        glIsEnablediDlg =
+        //       Marshal.GetDelegateForFunctionPointer<glIsEnabledi>(glIsEnablediPtr);
+        //    }
+
+        //    return glIsEnablediDlg(cap);
+        //}
+
         /// <summary>
         /// Enables server-side GL capabilities
         /// 
@@ -152,10 +204,13 @@ namespace PrairieGL.OpenGL
         /// <param name="target">Specifies the target to which the texture is bound.</param>
         /// <param name="texture">Specifies the name of a texture.</param>
         [DllImport("opengl32.dll", EntryPoint = "glBindTexture", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
-        public static extern void BindTexture(TextureTargets target, uint texture);
-        //{
-        //    glBindTextureDlg(target, texture);
-        //}
+        private static extern void glBindTexture(TextureTargets target, uint texture);
+
+        public static void BindTexture(TextureTargets target, uint texture)
+        {
+            glBindTexture(target, texture);
+            currentTexture = texture;
+        }
 
         /// <summary>
         /// Delete named textures
@@ -163,10 +218,16 @@ namespace PrairieGL.OpenGL
         /// <param name="n">Specifies the number of textures to be deleted.</param>
         /// <param name="textures">Specifies an array of textures to be deleted.</param>
         [DllImport("opengl32.dll", EntryPoint = "glDeleteTextures", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
-        public static extern void DeleteTextures(int n, uint[] textures);
-        //{
-        //    glDeleteTexturesDlg(n, textures);
-        //}
+        private static extern void glDeleteTextures(int n, uint[] textures);
+
+        public static void DeleteTextures(int n, uint[] textures)
+        {
+            glDeleteTextures(n, textures);
+            for (int i = 0; i < n; i++)
+            {
+                ResourceTracker.Remove(GLResourceType.Texture, textures[i]);
+            }
+        }
 
         /// <summary>
         /// Delete named textures
@@ -194,10 +255,19 @@ namespace PrairieGL.OpenGL
         /// <param name="n">Specifies the number of texture names to be generated.</param>
         /// <param name="textures">Specifies an array in which the generated texture names are stored.</param>
         [DllImport("opengl32.dll", EntryPoint = "glGenTextures", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
-        public static extern void GenTextures(int n, uint[] textures);
+        private static extern void glGenTextures(int n, uint[] textures);
         //{
         //    glGenTexturesDlg(n, textures);
         //}
+
+        public static void GenTextures(int n, uint[] textures)
+        {
+            glGenTextures(n, textures);
+            for (int i = 0; i < n; i++)
+            {
+                ResourceTracker.Add(GLResourceType.Texture, textures[i]);
+            }
+        }
 
         /// <summary>
         /// Generate a texture.
@@ -225,7 +295,7 @@ namespace PrairieGL.OpenGL
         /// <param name="type">Specifies the data type of the pixel data.</param>
         /// <param name="data">Specifies a pointer to the image data in memory.</param>
         [DllImport("opengl32.dll", EntryPoint = "glTexImage2D", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
-        public static extern void TexImage2D(TextureTargets target,
+        private static extern void glTexImage2D(TextureTargets target,
              int level,
              ImagePixelFormats internalformat,
              int width,
@@ -234,11 +304,66 @@ namespace PrairieGL.OpenGL
              ImagePixelFormats format,
              ImagePixelDataTypes type,
              IntPtr data);
-        //{
-        //    GLDelegates.glTexImage2D glTexImage2DDlg = Marshal.GetDelegateForFunctionPointer<GLDelegates.glTexImage2D>(Wgl.GetProcAddress("glTexImage2D"));
 
-        //    glTexImage2DDlg(target, level, internalformat, width, height, border, format, type, data);
-        //}
+        public static void TexImage2D(TextureTargets target,
+             int level,
+             ImagePixelFormats internalformat,
+             int width,
+             int height,
+             int border,
+             ImagePixelFormats format,
+             ImagePixelDataTypes type,
+             IntPtr data)
+        {
+            
+                //int sz = Marshal.SizeOf(typeof(T)) * data.Length; // Marshal.SizeOf(typeof(int[])) * data.Length;
+                glTexImage2D(target
+                    , level
+                    , internalformat
+                    , width
+                    , height
+                    , border
+                    , format
+                    , type
+                    , data);
+
+            int bytesPerPixel = SizePerPixel(type);
+            if (currentTexture > 0) ResourceTracker.Add(GLResourceType.Texture, currentTexture, width * height * bytesPerPixel);
+        }
+
+        private static int SizePerPixel(ImagePixelDataTypes type)
+        {
+            switch (type)
+            {
+                case ImagePixelDataTypes.GL_BYTE:
+                case ImagePixelDataTypes.GL_UNSIGNED_BYTE:
+                case ImagePixelDataTypes.GL_UNSIGNED_BYTE_3_3_2:
+                case ImagePixelDataTypes.GL_UNSIGNED_BYTE_2_3_3_REV:
+                    return 1;
+                case ImagePixelDataTypes.GL_HALF_FLOAT:
+                case ImagePixelDataTypes.GL_UNSIGNED_SHORT:
+                case ImagePixelDataTypes.GL_SHORT:
+                case ImagePixelDataTypes.GL_UNSIGNED_SHORT_5_6_5:
+                case ImagePixelDataTypes.GL_UNSIGNED_SHORT_5_6_5_REV:
+                case ImagePixelDataTypes.GL_UNSIGNED_SHORT_4_4_4_4:
+                case ImagePixelDataTypes.GL_UNSIGNED_SHORT_4_4_4_4_REV:
+                case ImagePixelDataTypes.GL_UNSIGNED_SHORT_5_5_5_1:
+                case ImagePixelDataTypes.GL_UNSIGNED_SHORT_1_5_5_5_REV:
+                    return 2;
+                case ImagePixelDataTypes.GL_FLOAT:
+                case ImagePixelDataTypes.GL_UNSIGNED_INT:
+                case ImagePixelDataTypes.GL_INT:
+                case ImagePixelDataTypes.GL_UNSIGNED_INT_8_8_8_8:
+                case ImagePixelDataTypes.GL_UNSIGNED_INT_8_8_8_8_REV:
+                case ImagePixelDataTypes.GL_UNSIGNED_INT_10_10_10_2:
+                case ImagePixelDataTypes.GL_UNSIGNED_INT_2_10_10_10_REV:
+                    return 4;
+
+                default:
+                    throw new ArgumentException("Unsupported pixel data type");
+            }
+        }
+
 
         /// <summary>
         /// Specify a two-dimensional texture image
@@ -310,7 +435,7 @@ namespace PrairieGL.OpenGL
         /// <param name="type">Specifies the data type of the pixel data.</param>
         /// <param name="data">Specifies a pointer to the image data in memory.</param>
         [DllImport("opengl32.dll", EntryPoint = "glTexImage2D", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
-        public static extern void TexImage2D(TextureTargets target,
+        private static extern void glTexImage2D(TextureTargets target,
              int level,
              ImagePixelFormats internalformat,
              int width,
@@ -319,19 +444,33 @@ namespace PrairieGL.OpenGL
              ImagePixelFormats format,
              ImagePixelDataTypes type,
              float[] data);
-        //{
-        //    GLDelegates.glTexImage2D<float> glTexImage2DDlg = Marshal.GetDelegateForFunctionPointer<GLDelegates.glTexImage2D<float>>(Wgl.GetProcAddress("glTexImage2D"));
 
-        //    glTexImage2DDlg(target,
-        //      level,
-        //     internalformat,
-        //     width,
-        //     height,
-        //      border,
-        //     format,
-        //     type,
-        //     data);
-        //}
+
+        public static void TexImage2D(TextureTargets target,
+             int level,
+             ImagePixelFormats internalformat,
+             int width,
+             int height,
+             int border,
+             ImagePixelFormats format,
+             ImagePixelDataTypes type,
+             float[] data)
+        {
+
+            //int sz = Marshal.SizeOf(typeof(T)) * data.Length; // Marshal.SizeOf(typeof(int[])) * data.Length;
+            glTexImage2D(target
+                , level
+                , internalformat
+                , width
+                , height
+                , border
+                , format
+                , type
+                , data);
+
+            int bytesPerPixel = SizePerPixel(type);
+            if (currentTexture > 0) ResourceTracker.Add(GLResourceType.Texture, currentTexture, width * height * bytesPerPixel);
+        }
 
         /// <summary>
         /// Set texture parameters
@@ -485,6 +624,83 @@ namespace PrairieGL.OpenGL
         public static void DrawElements(RenderModes mode, int count, DrawIndexTypes type)
         {
             DrawElements(mode, count, type, IntPtr.Zero);
+        }
+
+        /// <summary>
+        /// Draw multiple instances of a set of elements.
+        /// 
+        /// glDrawElementsInstanced behaves identically to glDrawElements except that instancecount instances
+        /// of the set of elements are executed and the value of the internal counter instanceID advances for each iteration. 
+        /// instanceID is an internal 32-bit integer counter that may be read by a vertex shader as gl_InstanceID.
+        /// 
+        /// glDrawElementsInstanced has the same effect as:
+        /// 
+        /// if (mode, count, or type is invalid )
+        ///     generate appropriate error
+        /// else {
+        ///     for (int i = 0; i<instancecount ; i++) {
+        ///         instanceID = i;
+        ///         glDrawElements(mode, count, type, indices);
+        ///     }
+        ///     instanceID = 0;
+        /// }
+        /// </summary>
+        /// <param name="mode">Specifies what kind of primitives to render.</param>
+        /// <param name="count">Specifies the number of elements to be rendered.</param>
+        /// <param name="type">Specifies the type of the values in indices.</param>
+        /// <param name="indices">Specifies a byte offset (cast to a pointer type) into the buffer bound to GL_ELEMENT_ARRAY_BUFFER to start reading indices from.</param>
+        /// <param name="instancecount">Specifies the number of instances of the specified range of indices to be rendered.</param>
+        public static void DrawElementsInstanced(RenderModes mode,
+     int count,
+     DrawIndexTypes type,
+     long indices,
+     int instancecount)
+        {
+            if (glDrawElementsInstancedPtr == IntPtr.Zero)
+            {
+                glDrawElementsInstancedPtr = Wgl.GetProcAddress("glDrawElementsInstanced");
+                glDrawElementsInstancedDlg = Marshal.GetDelegateForFunctionPointer<glDrawElementsInstanced>(glDrawElementsInstancedPtr);
+            }
+
+            glDrawElementsInstancedDlg(mode, count, type, new nint(indices), instancecount);
+        }
+
+
+        /// <summary>
+        /// Draw multiple instances of a set of elements.
+        /// 
+        /// glDrawElementsInstanced behaves identically to glDrawElements except that instancecount instances
+        /// of the set of elements are executed and the value of the internal counter instanceID advances for each iteration. 
+        /// instanceID is an internal 32-bit integer counter that may be read by a vertex shader as gl_InstanceID.
+        /// 
+        /// glDrawElementsInstanced has the same effect as:
+        /// 
+        /// if (mode, count, or type is invalid )
+        ///     generate appropriate error
+        /// else {
+        ///     for (int i = 0; i<instancecount ; i++) {
+        ///         instanceID = i;
+        ///         glDrawElements(mode, count, type, indices);
+        ///     }
+        ///     instanceID = 0;
+        /// }
+        /// </summary>
+        /// <param name="mode">Specifies what kind of primitives to render.</param>
+        /// <param name="count">Specifies the number of elements to be rendered.</param>
+        /// <param name="type">Specifies the type of the values in indices.</param>
+        /// <param name="instancecount">Specifies the number of instances of the specified range of indices to be rendered.</param>
+        public static void DrawElementsInstanced(RenderModes mode,
+     int count,
+     DrawIndexTypes type,
+     int instancecount)
+        {
+            if (glDrawElementsInstancedPtr == IntPtr.Zero)
+            {
+                glDrawElementsInstancedPtr = Wgl.GetProcAddress("glDrawElementsInstanced");
+                glDrawElementsInstancedDlg = Marshal.GetDelegateForFunctionPointer<glDrawElementsInstanced>(glDrawElementsInstancedPtr);
+            }
+
+            glDrawElementsInstancedDlg(mode, count, type, IntPtr.Zero, instancecount);
         }
 
         /// <summary>
@@ -709,10 +925,37 @@ namespace PrairieGL.OpenGL
         /// <param name="pname">Specifies the parameter value to be returned for indexed versions of glGet. </param>
         /// <param name="data">Returns the value or values of the specified parameter.</param>
         [DllImport("opengl32.dll", EntryPoint = "glGetIntegerv", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
-        public static extern void GetIntegerv(GetValueParameters pname, out int data);
+        public static extern void GetIntegerv(GetValueParameters pname, int[] data);
         //{
         //    glGetIntegervDlg(pname, out data);
         //}
+
+
+        /// <summary>
+        /// Return the value or values of a selected parameter.
+        /// 
+        /// These commands return values for simple state variables in GL. 
+        /// pname is a symbolic constant indicating the state variable to be 
+        /// returned, and data is a pointer to an array of the indicated type 
+        /// in which to place the returned data.
+        /// 
+        /// Type conversion is performed if data has a different type than 
+        /// the state variable value being requested.If glGetBooleanv is called, 
+        /// a floating-point (or integer) value is converted to GL_FALSE if 
+        /// and only if it is 0.0 (or 0). Otherwise, it is converted to GL_TRUE.
+        /// If glGetIntegerv is called, boolean values are returned as GL_TRUE 
+        /// or GL_FALSE, and most floating-point values are rounded to the 
+        /// nearest integer value.Floating-point colors and normals, however,
+        /// are returned with a linear mapping that maps 1.0 to the most
+        /// positive representable integer value and −1.0
+        /// to the most negative representable integer value.If glGetFloatv or 
+        /// glGetDoublev is called, boolean values are returned as GL_TRUE or 
+        /// GL_FALSE, and integer values are converted to floating-point values.
+        /// </summary>
+        /// <param name="pname">Specifies the parameter value to be returned for indexed versions of glGet. </param>
+        /// <param name="data">Returns the value or values of the specified parameter.</param>
+        [DllImport("opengl32.dll", EntryPoint = "glGetIntegerv", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        public static extern void GetIntegerv(GetValueParameters pname, out int data);
 
         /// <summary>
         /// Return the value or values of a selected parameter.
@@ -1704,6 +1947,12 @@ namespace PrairieGL.OpenGL
                     Marshal.GetDelegateForFunctionPointer<glGenVertexArrays>(glGenVertexArraysPtr);
             }
             glGenVertexArraysDlg(n, arrays);
+
+
+            for (int i = 0; i < n; i++)
+            {
+                ResourceTracker.Add(GLResourceType.VertexArray, arrays[i]);
+            }
         }
 
         /// <summary>
@@ -1784,6 +2033,11 @@ namespace PrairieGL.OpenGL
                Marshal.GetDelegateForFunctionPointer<glGenBuffers>(glGenBuffersPtr);
             }
             glGenBuffersDlg(n, buffers);
+
+            for(int i = 0; i < n; i++)
+            {
+                ResourceTracker.Add(GLResourceType.Buffer, buffers[i]);
+            }
         }
 
         /// <summary>
@@ -1867,6 +2121,7 @@ namespace PrairieGL.OpenGL
                Marshal.GetDelegateForFunctionPointer<glBindBuffer>(glBindBufferPtr);
             }
             glBindBufferDlg(target, buffer);
+            currentVBO = buffer;
         }
 
         /// <summary>
@@ -1891,6 +2146,7 @@ namespace PrairieGL.OpenGL
         /// <param name="size">Specifies the size in bytes of the buffer object's new data store.</param>
         /// <param name="data">Specifies a pointer to data that will be copied into the data store for initialization, or NULL if no data is to be copied.</param>
         /// <param name="usage">Specifies the expected usage pattern of the data store.</param>
+        /// <param name="bufId">Specifies the ID of the buffer object.</param>
         public static void BufferData(BufferTargets target, /*GLsizeiptr */ int size, IntPtr data, BufferUsages usage)
         {
             if (glBufferDataPtr == IntPtr.Zero)
@@ -1900,6 +2156,11 @@ namespace PrairieGL.OpenGL
                Marshal.GetDelegateForFunctionPointer<glBufferData>(glBufferDataPtr);
             }
             glBufferDataDlg(target, size, data, usage);
+
+            if (currentVBO > 0)
+            {
+                ResourceTracker.Add(GLResourceType.Buffer, currentVBO, size);
+            }
         }
 
         /// <summary>
@@ -1913,6 +2174,26 @@ namespace PrairieGL.OpenGL
         public static void BufferData<T>(BufferTargets target, T[] data, BufferUsages usage) where T : unmanaged
         {
             int sz = Marshal.SizeOf(typeof(T)) * data.Length; // Marshal.SizeOf(typeof(int[])) * data.Length;
+
+            GCHandle GlobalDataPointer = GCHandle.Alloc(data, GCHandleType.Pinned); // Marshal.AllocHGlobal(sz);
+
+            BufferData(target, sz, GlobalDataPointer.AddrOfPinnedObject(), usage);
+
+            GlobalDataPointer.Free();
+        }
+
+        /// <summary>
+        /// Create a new data store for a buffer object. 
+        /// The buffer object currently bound to target is used.
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="target">Specifies the target to which the buffer object is bound for</param>
+        /// <param name="count">Specifies the number of elements in data to upload</param>
+        /// <param name="data">Specifies a pointer to data that will be copied into the data store for initialization, or NULL if no data is to be copied.</param>
+        /// <param name="usage">Specifies the expected usage pattern of the data store.</param>
+        public static void BufferData<T>(BufferTargets target, int count, T[] data, BufferUsages usage) where T : unmanaged
+        {
+            int sz = Marshal.SizeOf(typeof(T)) * count; // Marshal.SizeOf(typeof(int[])) * data.Length;
 
             GCHandle GlobalDataPointer = GCHandle.Alloc(data, GCHandleType.Pinned); // Marshal.AllocHGlobal(sz);
 
@@ -1969,6 +2250,11 @@ namespace PrairieGL.OpenGL
            Marshal.GetDelegateForFunctionPointer<glNamedBufferData>(ptr);
 
             glNamedBufferDataDlg(buffer, size, data, usage);
+
+            if (buffer > 0)
+            {
+                ResourceTracker.Add(GLResourceType.Buffer, buffer, size);
+            }
         }
 
         /// <summary>
@@ -2281,6 +2567,9 @@ namespace PrairieGL.OpenGL
             glDrawRangeElementsDlg(mode, start, end, count, type, indices);
         }
 
+        //[DllImport("opengl32.dll", EntryPoint = "glDeleteBuffers", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        //private static extern void glDeleteBuffers(int n, uint[] buffers);
+
         /// <summary>
         /// Delete named buffer objects.
         /// 
@@ -2301,7 +2590,11 @@ namespace PrairieGL.OpenGL
                 glDeleteBuffersDlg =
                Marshal.GetDelegateForFunctionPointer<glDeleteBuffers>(glDeleteBuffersPtr);
             }
-            glDeleteBuffersDlg(n, buffers);
+            glDeleteBuffersDlg(n, ref buffers[0]);
+            for (int i = 0; i < n; i++)
+            {
+                ResourceTracker.Remove(GLResourceType.Buffer, buffers[i]);
+            }
         }
 
         /// <summary>
@@ -2333,6 +2626,10 @@ namespace PrairieGL.OpenGL
                Marshal.GetDelegateForFunctionPointer<glDeleteVertexArrays>(glDeleteVertexArraysPtr);
             }
             glDeleteVertexArraysDlg(n, arrays);
+            for (int i = 0; i < n; i++)
+            {
+                ResourceTracker.Remove(GLResourceType.VertexArray, arrays[i]);
+            }
         }
 
         /// <summary>
@@ -2372,6 +2669,7 @@ namespace PrairieGL.OpenGL
                Marshal.GetDelegateForFunctionPointer<glDeleteProgram>(glDeleteProgramPtr);
             }
             glDeleteProgramDlg(program);
+            ResourceTracker.Remove(GLResourceType.Program, program);
         }
 
         /// <summary>
@@ -2403,7 +2701,10 @@ namespace PrairieGL.OpenGL
                 glCreateShaderDlg =
                Marshal.GetDelegateForFunctionPointer<glCreateShader>(glCreateShaderPtr);
             }
-            return glCreateShaderDlg(shaderType);
+            uint shaderId = glCreateShaderDlg(shaderType);
+
+            ResourceTracker.Add(GLResourceType.Shader, shaderId);
+            return shaderId;
         }
 
         /// <summary>
@@ -2594,7 +2895,9 @@ namespace PrairieGL.OpenGL
                 glCreateProgramDlg =
                Marshal.GetDelegateForFunctionPointer<glCreateProgram>(glCreateProgramPtr);
             }
-            return glCreateProgramDlg();
+            uint program =  glCreateProgramDlg();
+            ResourceTracker.Add(GLResourceType.Program, program);
+            return program;
         }
 
         /// <summary>
@@ -2743,6 +3046,10 @@ namespace PrairieGL.OpenGL
                Marshal.GetDelegateForFunctionPointer<glLinkProgram>(glLinkProgramPtr);
             }
             glLinkProgramDlg(program);
+
+            GL.GetProgramiv(program, ProgramParameters.GL_INFO_LOG_LENGTH, out int InfoLogLength);
+            ResourceTracker.Add(GLResourceType.Program, program, InfoLogLength);
+
         }
 
         /// <summary>
@@ -2855,6 +3162,7 @@ namespace PrairieGL.OpenGL
                Marshal.GetDelegateForFunctionPointer<glDeleteShader>(glDeleteShaderPtr);
             }
             glDeleteShaderDlg(shader);
+            ResourceTracker.Remove(GLResourceType.Shader, shader);
         }
 
         /// <summary>
@@ -4188,6 +4496,8 @@ namespace PrairieGL.OpenGL
                Marshal.GetDelegateForFunctionPointer<glCompressedTexImage2D>(glCompressedTexImage2DPtr);
             }
             glCompressedTexImage2DDlg(target, level, internalformat, width, height, border, imageSize, data);
+
+            if (currentTexture > 0) ResourceTracker.Add(GLResourceType.Texture, currentTexture, data.Length * 4);
         }
 
         /// <summary>
@@ -4414,9 +4724,10 @@ namespace PrairieGL.OpenGL
         /// <returns>The list of errors OpenGL has generated</returns>
         public static List<ErrorLog> GetDebugMessages()
         {
-            //int[] arrLogCount;
-            int logCount;
+            //int[] arrLogCount= [1];
+            int logCount ;
             GetIntegerv(GetValueParameters.GL_DEBUG_LOGGED_MESSAGES, out logCount);
+            //logCount = arrLogCount[0];
 
             if (logCount == 0)
                 return new List<ErrorLog>();
@@ -4533,6 +4844,12 @@ namespace PrairieGL.OpenGL
                Marshal.GetDelegateForFunctionPointer<glGenRenderbuffers>(glGenRenderbuffersPtr);
             }
             glGenRenderbuffersDlg(n, buffers);
+
+
+            for (int i = 0; i < n; i++)
+            {
+                ResourceTracker.Add(GLResourceType.Renderbuffer, buffers[i]);
+            }
         }
 
         /// <summary>
@@ -4569,6 +4886,7 @@ namespace PrairieGL.OpenGL
         /// <param name="internalformat">Specifies the internal format to use for the renderbuffer object's image.</param>
         /// <param name="width">Specifies the width of the renderbuffer, in pixels.</param>
         /// <param name="height">Specifies the height of the renderbuffer, in pixels.</param>
+        /// <param name="renderBuf">Specifies the renderbuffer object to storage.</param>
         public static void RenderbufferStorage(RenderBufferTargets target, ImagePixelFormats internalformat, int width, int height)
         {
             if (glRenderbufferStoragePtr == IntPtr.Zero)
@@ -4578,6 +4896,7 @@ namespace PrairieGL.OpenGL
                Marshal.GetDelegateForFunctionPointer<glRenderbufferStorage>(glRenderbufferStoragePtr);
             }
             glRenderbufferStorageDlg(target, internalformat, width, height);
+            if (currentRenderBuffer > 0) ResourceTracker.Add(GLResourceType.Renderbuffer, currentRenderBuffer, 4 * width * height);
         }
 
         /// <summary>
@@ -4596,6 +4915,7 @@ namespace PrairieGL.OpenGL
                Marshal.GetDelegateForFunctionPointer<glNamedRenderbufferStorage>(glNamedRenderbufferStoragePtr);
             }
             glNamedRenderbufferStorageDlg(renderbuffer, internalformat, width, height);
+            if (renderbuffer > 0) ResourceTracker.Add(GLResourceType.Renderbuffer, renderbuffer, 4 * width * height);
         }
 
         /// <summary>
@@ -4827,6 +5147,10 @@ namespace PrairieGL.OpenGL
                Marshal.GetDelegateForFunctionPointer<glDeleteFramebuffers>(glDeleteFramebuffersPtr);
             }
             glDeleteFramebuffersDlg(n, framebuffers);
+            for (int i = 0; i < n; i++)
+            {
+                ResourceTracker.Remove(GLResourceType.Framebuffer, framebuffers[i]);
+            }
         }
 
         /// <summary>
@@ -4852,6 +5176,10 @@ namespace PrairieGL.OpenGL
                Marshal.GetDelegateForFunctionPointer<glDeleteRenderbuffers>(glDeleteRenderbuffersPtr);
             }
             glDeleteRenderbuffersDlg(n, renderbuffers);
+            for (int i = 0; i < n; i++)
+            {
+                ResourceTracker.Remove(GLResourceType.Renderbuffer, renderbuffers[i]);
+            }
         }
 
         /// <summary>
@@ -5239,5 +5567,239 @@ namespace PrairieGL.OpenGL
             }
             return new GLsync() { Handle = glFenceSyncDlg(condition, flags) };
         }
+
+        /// <summary>
+        /// Specify the equation used for both the RGB blend equation and the Alpha blend equation
+        /// 
+        /// The blend equations determine how a new pixel (the ''source'' color) is combined with a pixel already in the framebuffer (the ''destination'' color). This function sets both the RGB blend equation and the alpha blend equation to a single equation. glBlendEquationi specifies the blend equation for a single draw buffer whereas glBlendEquation sets the blend equation for all draw buffers.
+        /// 
+        /// These equations use the source and destination blend factors specified by either glBlendFunc or glBlendFuncSeparate.See glBlendFunc or glBlendFuncSeparate for a description of the various blend factors.
+        /// 
+        /// In the equations that follow, source and destination color components are referred to as (Rs, Gs, Bs, As)
+        /// and(Rd, Gd, Bd, Ad)
+        /// , respectively.The result color is referred to as (Rr, Gr, Br, Ar)
+        /// . The source and destination blend factors are denoted(sR, sG, sB, sA)
+        /// and(dR, dG, dB, dA)
+        /// , respectively.For these equations all color components are understood to have values in the range[0, 1].
+        /// </summary>
+        /// <param name="mode">specifies how source and destination colors are combined. It must be GL_FUNC_ADD, GL_FUNC_SUBTRACT, GL_FUNC_REVERSE_SUBTRACT, GL_MIN, GL_MAX.</param>
+        public static void BlendEquation(GLBlendEquations mode)
+        {
+            if (glBlendEquationPtr == IntPtr.Zero)
+            {
+                glBlendEquationPtr = Wgl.GetProcAddress("glBlendEquation");
+                glBlendEquationDlg = Marshal.GetDelegateForFunctionPointer<glBlendEquation>(glBlendEquationPtr);
+            }
+            glBlendEquationDlg(mode);
+        }
+
+        /// <summary>
+        /// Specify the equation used for both the RGB blend equation and the Alpha blend equation
+        /// 
+        /// The blend equations determine how a new pixel (the ''source'' color) is combined with a pixel already in the framebuffer (the ''destination'' color). This function sets both the RGB blend equation and the alpha blend equation to a single equation. glBlendEquationi specifies the blend equation for a single draw buffer whereas glBlendEquation sets the blend equation for all draw buffers.
+        /// 
+        /// These equations use the source and destination blend factors specified by either glBlendFunc or glBlendFuncSeparate.See glBlendFunc or glBlendFuncSeparate for a description of the various blend factors.
+        /// 
+        /// In the equations that follow, source and destination color components are referred to as (Rs, Gs, Bs, As)
+        /// and(Rd, Gd, Bd, Ad)
+        /// , respectively.The result color is referred to as (Rr, Gr, Br, Ar)
+        /// . The source and destination blend factors are denoted(sR, sG, sB, sA)
+        /// and(dR, dG, dB, dA)
+        /// , respectively.For these equations all color components are understood to have values in the range[0, 1].
+        /// </summary>
+        /// <param name="mode">specifies how source and destination colors are combined. It must be GL_FUNC_ADD, GL_FUNC_SUBTRACT, GL_FUNC_REVERSE_SUBTRACT, GL_MIN, GL_MAX.</param>
+        /// <param name="buf">specifies the index of the draw buffer for which to set the blend equation.</param>
+        public static void BlendEquationi(uint buf, GLBlendEquations mode)
+        {
+            if (glBlendEquationPtr == IntPtr.Zero)
+            {
+                glBlendEquationPtr = Wgl.GetProcAddress("glBlendEquation");
+                glBlendEquationDlg = Marshal.GetDelegateForFunctionPointer<glBlendEquation>(glBlendEquationPtr);
+            }
+            glBlendEquationDlg(mode);
+        }
+
+        public static void BlendFuncSeparate(GLBlendFactors srcRGB, GLBlendFactors dstRGB, GLBlendFactors srcAlpha, GLBlendFactors dstAlpha)
+        {
+            if (glBlendFuncSeparatePtr == IntPtr.Zero)
+            {
+                glBlendFuncSeparatePtr = Wgl.GetProcAddress("glBlendFuncSeparate");
+                glBlendFuncSeparateDlg = Marshal.GetDelegateForFunctionPointer<glBlendFuncSeparate>(glBlendFuncSeparatePtr);
+            }
+            glBlendFuncSeparateDlg(srcRGB, dstRGB, srcAlpha, dstAlpha);
+        }
+
+        public static void BlendEquationSeparate(GLBlendEquations modeRGB, GLBlendEquations modeAlpha)
+        {
+            if (glBlendEquationSeparatePtr == IntPtr.Zero)
+            {
+                glBlendEquationSeparatePtr = Wgl.GetProcAddress("glBlendEquationSeparate");
+                glBlendEquationSeparateDlg = Marshal.GetDelegateForFunctionPointer<glBlendEquationSeparate>(glBlendEquationSeparatePtr);
+            }
+            glBlendEquationSeparateDlg(modeRGB, modeAlpha);
+        }
+
+        [DllImport("opengl32.dll", EntryPoint = "glScissor", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        public static extern void Scissor(int x, int y, int width, int height);
+        //{
+        //    if (glScissorPtr == IntPtr.Zero)
+        //    {
+        //        glScissorPtr = Wgl.GetProcAddress("glScissor");
+        //        glScissorDlg = Marshal.GetDelegateForFunctionPointer<glScissor>(glScissorPtr);
+        //    }
+        //    glScissorDlg(x, y, width, height);
+        //}
+
+        public static void DrawElementsBaseVertex(RenderModes mode, int count, GLDataTypes type, IntPtr indices, int basevertex)
+        {
+            if (glDrawElementsBaseVertexPtr == IntPtr.Zero)
+            {
+                glDrawElementsBaseVertexPtr = Wgl.GetProcAddress("glDrawElementsBaseVertex");
+                glDrawElementsBaseVertexDlg = Marshal.GetDelegateForFunctionPointer<glDrawElementsBaseVertex>(glDrawElementsBaseVertexPtr);
+            }
+            glDrawElementsBaseVertexDlg(mode, count, type, indices, basevertex);
+        }
+
+        /// <summary>
+        /// Read a block of pixels from the frame buffer
+        /// </summary>
+        /// <typeparam name="T">Should be a float or int type.</typeparam>
+        /// <param name="x">Specify the window coordinates of the first pixel that is read from the frame buffer. This location is the lower left corner of a rectangular block of pixels.</param>
+        /// <param name="y">Specify the window coordinates of the first pixel that is read from the frame buffer. This location is the lower left corner of a rectangular block of pixels.</param>
+        /// <param name="width">Specify the dimensions of the pixel rectangle. width and height of one correspond to a single pixel.</param>
+        /// <param name="height">Specify the dimensions of the pixel rectangle. width and height of one correspond to a single pixel.</param>
+        /// <param name="format">Specifies the format of the pixel data.</param>
+        /// <param name="type">Specifies the data type of the pixel data.</param>
+        /// <param name="data">Returns the pixel data.</param>
+        public static void ReadPixels<T>(
+                int x,
+                int y,
+                int width,
+                int height,
+                ImagePixelFormats format,
+                ImagePixelDataTypes type,
+                ref T[] data
+            ) where T : unmanaged
+        {
+            if (glReadPixelsPtr == IntPtr.Zero)
+            {
+                glReadPixelsPtr = Wgl.GetProcAddress("glReadPixels");
+
+                // Windows quirk fallback: If Wgl fails on a core 1.0 function, try standard DLL import
+                if (glReadPixelsPtr == IntPtr.Zero) 
+                    glReadPixelsPtr = NativeLibrary.GetExport(NativeLibrary.Load("opengl32.dll"), "glReadPixels");
+
+                glReadPixelsDlg = Marshal.GetDelegateForFunctionPointer<glReadPixels>(glReadPixelsPtr);
+            }
+
+            int componentsPerPixel = 1;
+            switch (format)
+            {
+                case ImagePixelFormats.GL_STENCIL_INDEX:
+                case ImagePixelFormats.GL_DEPTH_COMPONENT:
+                case ImagePixelFormats.GL_RED:
+                case ImagePixelFormats.GL_GREEN:
+                case ImagePixelFormats.GL_BLUE:
+                    componentsPerPixel = 1; break;
+                case ImagePixelFormats.GL_RGB:
+                case ImagePixelFormats.GL_BGR:
+                    componentsPerPixel = 3; break;
+                case ImagePixelFormats.GL_RGBA:
+                case ImagePixelFormats.GL_BGRA:
+                    componentsPerPixel = 4; break;
+            }
+            // THE FIX: Total elements needed = Width * Height * Components Per Pixel
+            int requiredSize = width * height * componentsPerPixel;
+
+            // THE FIX: Only allocate if the user didn't provide an array, or if it's too small
+            if (data == null || data.Length < requiredSize)
+            {
+                data = new T[requiredSize];
+            }
+
+            GCHandle handle = GCHandle.Alloc(data, GCHandleType.Pinned);
+            glReadPixelsDlg(x, y, width, height, format, type, handle.AddrOfPinnedObject());
+            handle.Free();
+        }
+
+        /// <summary>
+        /// Read a block of pixels from the frame buffer
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="x">Specify the window coordinates of the first pixel that is read from the frame buffer. This location is the lower left corner of a rectangular block of pixels.</param>
+        /// <param name="y">Specify the window coordinates of the first pixel that is read from the frame buffer. This location is the lower left corner of a rectangular block of pixels.</param>
+        /// <param name="width">Specify the dimensions of the pixel rectangle. width and height of one correspond to a single pixel.</param>
+        /// <param name="height">Specify the dimensions of the pixel rectangle. width and height of one correspond to a single pixel.</param>
+        /// <param name="format">Specifies the format of the pixel data.</param>
+        /// <param name="type">Specifies the data type of the pixel data.</param>
+        /// <param name="bufSize">Specifies the size of the buffer data for glReadnPixels function.</param>
+        /// <param name="data">Returns the pixel data.</param>
+        public static void ReadnPixels<T>(
+                        int x,
+                        int y,
+                        int width,
+                        int height,
+                        ImagePixelFormats format,
+                        ImagePixelDataTypes type,
+                        int bufSize,
+                        ref T[] data) where T : unmanaged
+        {
+            if (glReadnPixelsPtr == IntPtr.Zero)
+            {
+                glReadnPixelsPtr = Wgl.GetProcAddress("glReadnPixels");
+
+                // Windows quirk fallback: If Wgl fails on a core 1.0 function, try standard DLL import
+                if (glReadnPixelsPtr == IntPtr.Zero)
+                    glReadnPixelsPtr = NativeLibrary.GetExport(NativeLibrary.Load("opengl32.dll"), "glReadnPixels");
+
+                glReadnPixelsDlg = Marshal.GetDelegateForFunctionPointer<glReadnPixels>(glReadnPixelsPtr);
+            }
+
+            int componentsPerPixel = 1;
+            switch (format)
+            {
+                case ImagePixelFormats.GL_STENCIL_INDEX:
+                case ImagePixelFormats.GL_DEPTH_COMPONENT:
+                case ImagePixelFormats.GL_RED:
+                case ImagePixelFormats.GL_GREEN:
+                case ImagePixelFormats.GL_BLUE:
+                    componentsPerPixel = 1; break;
+                case ImagePixelFormats.GL_RGB:
+                case ImagePixelFormats.GL_BGR:
+                    componentsPerPixel = 3; break;
+                case ImagePixelFormats.GL_RGBA:
+                case ImagePixelFormats.GL_BGRA:
+                    componentsPerPixel = 4; break;
+            }
+            // THE FIX: Total elements needed = Width * Height * Components Per Pixel
+            int requiredSize = width * height * componentsPerPixel;
+
+            // THE FIX: Only allocate if the user didn't provide an array, or if it's too small
+            if (data == null || data.Length < requiredSize)
+            {
+                data = new T[requiredSize];
+            }
+
+            GCHandle handle = GCHandle.Alloc(data, GCHandleType.Pinned);
+            glReadnPixelsDlg(x, y, width, height, format, type, bufSize, handle.AddrOfPinnedObject());
+            handle.Free();
+        }
+
+        public static void CullFace(CullModes mode)
+        {
+            if (glCullFacePtr == IntPtr.Zero)
+            {
+                glCullFacePtr = Wgl.GetProcAddress("glCullFace");
+
+
+                // Windows quirk fallback: If Wgl fails on a core 1.0 function, try standard DLL import
+                if (glCullFacePtr == IntPtr.Zero)
+                    glCullFacePtr = NativeLibrary.GetExport(NativeLibrary.Load("opengl32.dll"), "glCullFace");
+
+                glCullFaceDlg = Marshal.GetDelegateForFunctionPointer<glCullFace>(glCullFacePtr);
+            }
+            glCullFaceDlg(mode);
+        }
+
     }
 }
