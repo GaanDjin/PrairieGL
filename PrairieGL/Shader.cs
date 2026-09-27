@@ -1,4 +1,4 @@
-﻿using PrairieGL.OpenGL;
+using PrairieGL.OpenGL;
 using System.Numerics;
 
 namespace PrairieGL
@@ -6,7 +6,7 @@ namespace PrairieGL
     /// <summary>
     /// The sharder class loads, then compiles, and sends the shader program to 
     /// the GPU for rendering objects that use this Shader. 
-    /// 
+    ///
     ///TODO: If common shader code gets unruly move to embedded resource file. 
     ///TODO: Or plain file for editing w/o recompiling?
     ///TODO: Implement other Shader program types (Geometry, tessellation).
@@ -65,8 +65,19 @@ layout(location = 1) in vec2 aTexCoord;
 layout(location = 2) in vec3 aNormal;
 layout(location = 3) in vec4 aColour;
 
-layout(location = 4) in vec4 boneIds;
-layout(location = 5) in vec4 boneWeights;
+// --- INSTANCING ATTRIBUTE ---
+// Takes up locations 4, 5, 6, and 7
+layout(location = 4) in mat4 instanceMatrix;
+
+layout(location = 8) in vec4 boneIds;
+layout(location = 9) in vec4 boneWeights;
+
+layout(location = 10) in vec4 tangent;
+layout(location = 11) in vec4 bitangent;
+layout(location = 12) in vec2 secondaryUVs;
+layout(location = 13) in int textureArrayID;
+layout(location = 14) in vec4 customInstanceData;
+//layout(location = 15) in vec4 free;
 
 out vec3 Normal;
 out vec4 WorldPosition;
@@ -141,11 +152,13 @@ mat4 model = modelScale * modelRot * modelPos;
     sampler2D DiffuseTexture;
     sampler2D NormalTexture;
     sampler2D SpecularTexture;
+    sampler2D EmissiveTexture;
 
     float Shininess;
     vec3 AmbientColour;
 	vec3 DiffuseColour;
 	vec3 SpecularColour;
+    vec3 EmissiveColour;
 }; 
 
 
@@ -377,41 +390,14 @@ vec3 perturb(vec3 c, vec3 randPoint, float scale){
         /// <param name="isVertShader">If true then the userCode is expected to be a Vertex Shader; Otherwise Fragment shader source is expected.</param>
 		private static string InjectCommonShaderCode(string userCode, bool isVertShader)
 		{
-			//For both Frag and Vert
-			//Find Version Tag: "#version "
-			//Next line inject variables and global shutches 
-			//Find main function "void main"
-			//Find next open curly brace: {
-			//Inject initialization code before user code. 
-
 			string globalVars = isVertShader ? CommonVertGlobalVariables : CommonFragGlobalVariables;
 			string mainInitCode = isVertShader ? CommonVertMainInitValues : CommonFragMainInitValues;
-
-			//Gawd it's bad when you have to write old skool because Regex won't work right! (Yes I tested the very same strings and regex in js without issue.)
-
-			//Match match = Regex.Match(userCode, @"(\#version\s)(.)*(\n|\r)");
-
-			//int insertLocation = match.Index + match.Length + 1;
-
-			//string fullCode = userCode.Insert(insertLocation, globalVars);
-
-			//match = Regex.Match(fullCode, @"void\smain(.|\n|\r)*\{");
-
-			//insertLocation = match.Index + match.Length + 1;
-
-			//return fullCode.Insert(insertLocation, mainInitCode);
-
-			///TODO: This is open to so many faulures
-			///Doesn't account for commented out blocks. 
-			///The white space is tabs instead of a space char.
-			///if there's more than one space in "void main"
 
 			string fullCode = userCode;
 
 			int versIndex = fullCode.IndexOf("#version ");
 			int newlineIndex = fullCode.IndexOf('\n', versIndex);
 			fullCode = fullCode.Insert(newlineIndex + 1, globalVars);
-
 
 			int mainIndex = fullCode.IndexOf("void main(");
 			int openBraceIndex = fullCode.IndexOf('{', mainIndex);
@@ -441,8 +427,8 @@ vec3 perturb(vec3 c, vec3 randPoint, float scale){
         }
 
         /// <summary>
-        /// Tell the GPU this is the activa shader that will be used to render any
-        /// subsiquent calls.
+        /// Tell the GPU this is the active shader that will be used to render any
+        /// subsequent calls.
         /// </summary>
         public void Use()
         {
@@ -453,44 +439,18 @@ vec3 perturb(vec3 c, vec3 randPoint, float scale){
         /// Loads a shader from the source code located in the file system.
         /// </summary>
         /// <param name="vertex_file_path">The path to the vertex shader source code file</param>
-        /// <param name="fragment_file_path">The path to the fragmet shader source code</param>
+        /// <param name="fragment_file_path">The path to the fragment shader source code</param>
         /// <param name="includeCommon">Use to include built in shader code or just the passed source</param>
         /// <returns>The newly created shader</returns>
-        /// <remarks>
-        /// When a mesh is being rendered from PrairieEngine these shader attributes are set:
-        /// 
-        /// "_Size" = Mesh.Bounds.Size
-        /// "_Center" = Mesh.Bounds.Center
-        /// "_UseBones" = 0 ///TODO: Implement Bones & Animations in Mesh Class
-        /// 
-        /// Vertex Attrib Arrays:
-        /// (0) = Vertex Buffer
-        /// (1) = uvbuffer
-        /// (2) = normalbuffer
-        /// (3) = colorbuffer
-        /// And indicies are bound as GL_ELEMENT_ARRAY_BUFFER and then drawn as triangels via DrawElements
-        /// 
-        /// "modelScale" = GlobalScale;
-        /// "modelRot" = GlobalRotation;
-        /// "modelPos" = GlobalPosition;
-        /// And the final position of the model is then calculated as:
-        /// mat4 model = modelScale * modelRot * modelPos
-        /// 
-        /// When writing a shader one should take care to use the same attributes in the same order. 
-        /// More can be added and set as the program requires. 
-        /// </remarks>
 		public static Shader LoadShaderFromFile(string vertex_file_path, string fragment_file_path, bool includeCommon = true)
 		{
-			// Read the Vertex Shader code from the file
 			string VertexShaderCode = File.ReadAllText(vertex_file_path);
-			// Read the Fragment Shader code from the file
 			string FragmentShaderCode = File.ReadAllText(fragment_file_path);
-
 			return LoadShader(VertexShaderCode, FragmentShaderCode);
 		}
 
         /// <summary>
-        /// Loads a shadrer fromthe source code passed as a string.
+        /// Loads a shader from the source code passed as a string.
         /// </summary>
         /// <param name="VertexShaderCode">The string containing the vertex source code</param>
         /// <param name="FragmentShaderCode">The string containing the fragment source code</param>
@@ -501,24 +461,15 @@ vec3 perturb(vec3 c, vec3 randPoint, float scale){
             if (includeCommon)
     			InjectCommonShaderCode(ref VertexShaderCode, ref FragmentShaderCode);
 
-
-			// Create the shaders
 			uint VertexShaderID = GL.CreateShader(ShaderProgramTypes.GL_VERTEX_SHADER);
 			uint FragmentShaderID = GL.CreateShader(ShaderProgramTypes.GL_FRAGMENT_SHADER);
 
-
-
-			int Result = 0; // GL_FALSE;
+			int Result = 0;
 			int InfoLogLength;
-
-
-			// Compile Vertex Shader
-			//Console.WriteLine("Compiling vertex shader\n");
 
 			GL.ShaderSource(VertexShaderID, VertexShaderCode);
 			GL.CompileShader(VertexShaderID);
 
-			// Check Vertex Shader
 			GL.GetShaderiv(VertexShaderID, ShaderParameters.GL_COMPILE_STATUS, out Result);
 			GL.GetShaderiv(VertexShaderID, ShaderParameters.GL_INFO_LOG_LENGTH, out InfoLogLength);
 			if (InfoLogLength > 0)
@@ -528,15 +479,9 @@ vec3 perturb(vec3 c, vec3 randPoint, float scale){
 				Console.WriteLine(VertexShaderErrorMessage);
 			}
 
-
-
-			// Compile Fragment Shader
-			//Console.WriteLine("Compiling fragment shader\n");
-
 			GL.ShaderSource(FragmentShaderID, FragmentShaderCode);
 			GL.CompileShader(FragmentShaderID);
 
-			// Check Fragment Shader
 			GL.GetShaderiv(FragmentShaderID, ShaderParameters.GL_COMPILE_STATUS, out Result);
 			GL.GetShaderiv(FragmentShaderID, ShaderParameters.GL_INFO_LOG_LENGTH, out InfoLogLength);
 			if (InfoLogLength > 0)
@@ -546,16 +491,11 @@ vec3 perturb(vec3 c, vec3 randPoint, float scale){
 				Console.WriteLine(FragmentShaderErrorMessage);
 			}
 
-
-
-			// Link the program
-			//Console.WriteLine("Linking program\n");
 			uint ProgramID = GL.CreateProgram();
 			GL.AttachShader(ProgramID, VertexShaderID);
 			GL.AttachShader(ProgramID, FragmentShaderID);
 			GL.LinkProgram(ProgramID);
 
-			// Check the program
 			GL.GetProgramiv(ProgramID, ProgramParameters.GL_LINK_STATUS, out Result);
 			GL.GetProgramiv(ProgramID, ProgramParameters.GL_INFO_LOG_LENGTH, out InfoLogLength);
 			if (InfoLogLength > 0)
@@ -565,14 +505,10 @@ vec3 perturb(vec3 c, vec3 randPoint, float scale){
 				Console.WriteLine(ProgramErrorMessage);
 			}
 
-
 			GL.DetachShader(ProgramID, VertexShaderID);
 			GL.DetachShader(ProgramID, FragmentShaderID);
-
 			GL.DeleteShader(VertexShaderID);
 			GL.DeleteShader(FragmentShaderID);
-
-
 
 			Shader s = new Shader(ProgramID, VertexShaderCode, FragmentShaderCode);
             return s;
@@ -580,60 +516,35 @@ vec3 perturb(vec3 c, vec3 randPoint, float scale){
 
         /// <summary>
         /// Queries the GPU for all uniforms (Variables) used by this shader. 
-        /// If the shader code has uniforms that aren't actually used by the shader
-        /// they will not appear in the list. 
         /// </summary>
         private void ListUniforms()
         {
-            // First, we have to get the number of active uniforms in the shader.
             GL.GetProgramiv(GLHandle, ProgramParameters.GL_ACTIVE_UNIFORMS, out int numberOfUniforms);
 
-            // Loop over all the uniforms,
             for (int i = 0; i < numberOfUniforms; i++)
             {
-                // get the name of this uniform,
                 GL.GetActiveUniform(GLHandle, i, out _, out _, out string key);
-
-                // get the location,
                 int location = GL.GetUniformLocation(GLHandle, key);
-
-                // and then add it to the dictionary.
                 uniformLocations.Add(key, location);
-
-                //GL.GetUniform(Handle, i, out float uniformValue);
-
             }
-
         }
 
         /// <summary>
-        /// Gets the OpenGL ID of the specidied Attribute (Variable) used by this shader. 
-        /// If the shader does not contain the requested Attribute -1 is returned.
+        /// Gets the OpenGL ID of the specified Attribute (Variable) used by this shader. 
+        /// Returns -1 if not found.
         /// </summary>
-        /// <param name="attribName">The name of the Attribute (Variable) to get.</param>
-        /// <returns>The ID of the Attribute or -1 if it doesn't exist.</returns>
         public int GetAttribLocation(string attribName)
         {
-
             if (HasUniform(attribName))
                 return uniformLocations[attribName];
             return -1;
         }
 
         #region Uniform setters
-        // Uniforms are variables that can be set by user code, instead of reading them from the VBO.
-        // You use VBOs for vertex-related data, and uniforms for almost everything else.
-
-        // Setting a uniform is almost always the exact same, so I'll explain it here once, instead of in every method:
-        //     1. Bind the program you want to set the uniform on
-        //     2. Get a handle to the location of the uniform with GL.GetUniformLocation.
-        //     3. Use the appropriate GL.Uniform* function to set the uniform.
 
         /// <summary>
-        /// Set a uniform (variable) int value on this shader.
+        /// Set a uniform int value on this shader.
         /// </summary>
-        /// <param name="name">The name of the uniform</param>
-        /// <param name="data">The data to set</param>
         public void SetUniform(string name, int data)
         {
             if (HasUniform(name))
@@ -644,10 +555,8 @@ vec3 perturb(vec3 c, vec3 randPoint, float scale){
         }
 
         /// <summary>
-        /// Set a uniform (variable) float value on this shader.
+        /// Set a uniform float value on this shader.
         /// </summary>
-        /// <param name="name">The name of the uniform</param>
-        /// <param name="data">The data to set</param>
         public void SetUniform(string name, float data)
         {
             if (HasUniform(name))
@@ -658,10 +567,8 @@ vec3 perturb(vec3 c, vec3 randPoint, float scale){
         }
 
         /// <summary>
-        /// Set a uniform (variable) double value on this shader.
+        /// Set a uniform double value on this shader.
         /// </summary>
-        /// <param name="name">The name of the uniform</param>
-        /// <param name="data">The data to set</param>
         public void SetUniform(string name, double data)
         {
             if (HasUniform(name))
@@ -672,42 +579,53 @@ vec3 perturb(vec3 c, vec3 randPoint, float scale){
         }
 
         /// <summary>
-        /// Set a uniform (variable) Matrix4x4 value on this shader.
+        /// Set a uniform Matrix4x4 value on this shader.
         /// </summary>
-        /// <param name="name">The name of the uniform</param>
-        /// <param name="data">The data to set</param>
         public void SetUniform(string name, Matrix4x4 data)
         {
             if (HasUniform(name))
             {
-                //ReadOnlySpan<float> matrices = new ReadOnlySpan<float>(data.ToArray());
-
                 GL.UseProgram(GLHandle);
                 GL.UniformMatrix4fv(uniformLocations[name], 1, true, data);
             }
         }
 
         /// <summary>
-        /// Set a uniform (variable) Matrix3x3 value on this shader.
+        /// Set an array of Matrix4x4 uniforms on this shader.
+        /// Used for bone matrices: SetUniform("BonePositions", boneMatrices).
+        /// Uploads up to matrices.Length elements, capped at MAX_BONES (100).
         /// </summary>
-        /// <param name="name">The name of the uniform</param>
-        /// <param name="data">The data to set</param>
+        public void SetUniform(string name, Matrix4x4[] data)
+        {
+            if (data == null || data.Length == 0) return;
+
+            GL.UseProgram(GLHandle);
+
+            int count = Math.Min(data.Length, 100); // MAX_BONES
+            for (int i = 0; i < count; i++)
+            {
+                string elementName = $"{name}[{i}]";
+                int location = GL.GetUniformLocation(GLHandle, elementName);
+                if (location >= 0)
+                    GL.UniformMatrix4fv(location, 1, true, data[i]);
+            }
+        }
+
+        /// <summary>
+        /// Set a uniform Matrix3x3 value on this shader.
+        /// </summary>
         public void SetUniform(string name, Matrix3x3 data)
         {
             if (HasUniform(name))
             {
-                //ReadOnlySpan<float> matrices = new ReadOnlySpan<float>(data.ToArray());
-
                 GL.UseProgram(GLHandle);
                 GL.UniformMatrix3fv(uniformLocations[name], 1, true, data);
             }
         }
 
         /// <summary>
-        /// Set a uniform (variable) Vector3 value on this shader.
+        /// Set a uniform Vector3 value on this shader.
         /// </summary>
-        /// <param name="name">The name of the uniform</param>
-        /// <param name="data">The data to set</param>
         public void SetUniform(string name, Vector3 data)
         {
             if (HasUniform(name))
@@ -718,10 +636,8 @@ vec3 perturb(vec3 c, vec3 randPoint, float scale){
         }
 
         /// <summary>
-        /// Set a uniform (variable) Vector2 value on this shader.
+        /// Set a uniform Vector2 value on this shader.
         /// </summary>
-        /// <param name="name">The name of the uniform</param>
-        /// <param name="data">The data to set</param>
         public void SetUniform(string name, Vector2 data)
         {
             if (HasUniform(name))
@@ -732,10 +648,8 @@ vec3 perturb(vec3 c, vec3 randPoint, float scale){
         }
 
         /// <summary>
-        /// Set a uniform (variable) Vector4 value on this shader.
+        /// Set a uniform Vector4 value on this shader.
         /// </summary>
-        /// <param name="name">The name of the uniform</param>
-        /// <param name="data">The data to set</param>
         public void SetUniform(string name, Vector4 data)
         {
             if (HasUniform(name))
@@ -746,10 +660,8 @@ vec3 perturb(vec3 c, vec3 randPoint, float scale){
         }
 
         /// <summary>
-        /// Set a uniform (variable) Quaternion value on this shader.
+        /// Set a uniform Quaternion value on this shader.
         /// </summary>
-        /// <param name="name">The name of the uniform</param>
-        /// <param name="data">The data to set</param>
         public void SetUniform(string name, Quaternion data)
         {
             if (HasUniform(name))
@@ -760,148 +672,77 @@ vec3 perturb(vec3 c, vec3 randPoint, float scale){
         }
 
         /// <summary>
-        /// Checks the Shader program (Queries the GPU) to see if the reqested Uniform exists.
-        /// For array values the array "[]" portion is stripped and only the name is 
-        /// queried. Array bounds are not validated!
+        /// Checks whether the shader has the requested uniform.
+        /// For array uniforms, strips the [] suffix before checking.
         /// </summary>
-        /// <param name="name">The name of the uniform to check.</param>
-        /// <returns>True if this Shader has the specified uniform; Otherwise false.</returns>
         public bool HasUniform(string name)
         {
             if (uniformLocations.ContainsKey(name))
-            {
                 return true;
-            }
 
             if (name.Contains("["))
                 name = name.Substring(0, name.IndexOf("["));
 
-            if (uniformLocations.ContainsKey(name))
-            {
-                return true;
-            }
-
-            return false;
+            return uniformLocations.ContainsKey(name);
         }
 
         #endregion
 
         #region Set all shader values
 
-        /// <summary>
-        /// Set a uniform int value on all shaders.
-        /// </summary>
-        /// <param name="name">The name of the uniform</param>
-        /// <param name="data">The data to set</param>
+        /// <summary>Set a uniform int value on all shaders.</summary>
         public static void SetUniformAll(string name, int data)
         {
-            foreach (Shader s in Shaders)
-            {
-                s.SetUniform(name, data);
-            }
+            foreach (Shader s in Shaders) s.SetUniform(name, data);
         }
 
-        /// <summary>
-        /// Set a uniform float value on all shaders.
-        /// </summary>
-        /// <param name="name">The name of the uniform</param>
-        /// <param name="data">The data to set</param>
+        /// <summary>Set a uniform float value on all shaders.</summary>
         public static void SetUniformAll(string name, float data)
         {
-            foreach (Shader s in Shaders)
-            {
-                s.SetUniform(name, data);
-            }
+            foreach (Shader s in Shaders) s.SetUniform(name, data);
         }
 
-        /// <summary>
-        /// Set a uniform Matrix4x4 value on all shaders.
-        /// </summary>
-        /// <param name="name">The name of the uniform</param>
-        /// <param name="data">The data to set</param>
-        /// </remarks>
+        /// <summary>Set a uniform Matrix4x4 value on all shaders.</summary>
         public static void SetUniformAll(string name, Matrix4x4 data)
         {
-            foreach (Shader s in Shaders)
-            {
-                s.SetUniform(name, data);
-            }
+            foreach (Shader s in Shaders) s.SetUniform(name, data);
         }
 
-        /// <summary>
-        /// Set a uniform Matrix3x3 value on all shaders.
-        /// </summary>
-        /// <param name="name">The name of the uniform</param>
-        /// <param name="data">The data to set</param>
+        /// <summary>Set a uniform Matrix3x3 value on all shaders.</summary>
         public static void SetUniformAll(string name, Matrix3x3 data)
         {
-            foreach (Shader s in Shaders)
-            {
-                s.SetUniform(name, data);
-            }
+            foreach (Shader s in Shaders) s.SetUniform(name, data);
         }
 
-        /// <summary>
-        /// Set a uniform Vector3 value on all shaders.
-        /// </summary>
-        /// <param name="name">The name of the uniform</param>
-        /// <param name="data">The data to set</param>
+        /// <summary>Set a uniform Vector3 value on all shaders.</summary>
         public static void SetUniformAll(string name, Vector3 data)
         {
-            foreach (Shader s in Shaders)
-            {
-                s.SetUniform(name, data);
-            }
+            foreach (Shader s in Shaders) s.SetUniform(name, data);
         }
 
-        /// <summary>
-        /// Set a uniform Vector2 value on all shaders.
-        /// </summary>
-        /// <param name="name">The name of the uniform</param>
-        /// <param name="data">The data to set</param>
+        /// <summary>Set a uniform Vector2 value on all shaders.</summary>
         public static void SetUniformAll(string name, Vector2 data)
         {
-            foreach (Shader s in Shaders)
-            {
-                s.SetUniform(name, data);
-            }
+            foreach (Shader s in Shaders) s.SetUniform(name, data);
         }
 
-        /// <summary>
-        /// Set a uniform Vector4 value on all shaders.
-        /// </summary>
-        /// <param name="name">The name of the uniform</param>
-        /// <param name="data">The data to set</param>
+        /// <summary>Set a uniform Vector4 value on all shaders.</summary>
         public static void SetUniformAll(string name, Vector4 data)
         {
-            foreach (Shader s in Shaders)
-            {
-                s.SetUniform(name, data);
-            }
+            foreach (Shader s in Shaders) s.SetUniform(name, data);
         }
 
-        /// <summary>
-        /// Set a uniform Quaternion value on all shaders.
-        /// </summary>
-        /// <param name="name">The name of the uniform</param>
-        /// <param name="data">The data to set</param>
+        /// <summary>Set a uniform Quaternion value on all shaders.</summary>
         public static void SetUniformAll(string name, Quaternion data)
         {
-            foreach (Shader s in Shaders)
-            {
-                s.SetUniform(name, data);
-            }
+            foreach (Shader s in Shaders) s.SetUniform(name, data);
         }
 
         #endregion
 
         #region Uniform Getters
 
-        /// <summary>
-        /// Gets the int value for the requested Uniform.
-        /// </summary>
-        /// <param name="name">The name of the Uniform (Variable) to get</param>
-        /// <param name="data">The data stored on the GPU or 0 if the Uniform doesn't exsist.</param>
+        /// <summary>Gets the int value for the requested Uniform.</summary>
         public void GetUniform(string name, out int data)
         {
             if (HasUniform(name))
@@ -913,11 +754,7 @@ vec3 perturb(vec3 c, vec3 randPoint, float scale){
                 data = 0;
         }
 
-        /// <summary>
-        /// Gets the uint value for the requested Uniform.
-        /// </summary>
-        /// <param name="name">The name of the Uniform (Variable) to get</param>
-        /// <param name="data">The data stored on the GPU or 0 if the Uniform doesn't exsist.</param>
+        /// <summary>Gets the uint value for the requested Uniform.</summary>
         public void GetUniform(string name, out uint data)
         {
             if (HasUniform(name))
@@ -929,11 +766,7 @@ vec3 perturb(vec3 c, vec3 randPoint, float scale){
                 data = 0;
         }
 
-        /// <summary>
-        /// Gets the float value for the requested Uniform.
-        /// </summary>
-        /// <param name="name">The name of the Uniform (Variable) to get</param>
-        /// <param name="data">The data stored on the GPU or 0 if the Uniform doesn't exsist.</param>
+        /// <summary>Gets the float value for the requested Uniform.</summary>
         public void GetUniform(string name, out float data)
         {
             if (HasUniform(name))
@@ -945,11 +778,7 @@ vec3 perturb(vec3 c, vec3 randPoint, float scale){
                 data = 0;
         }
 
-        /// <summary>
-        /// Gets the double value for the requested Uniform.
-        /// </summary>
-        /// <param name="name">The name of the Uniform (Variable) to get</param>
-        /// <param name="data">The data stored on the GPU or 0 if the Uniform doesn't exsist.</param>
+        /// <summary>Gets the double value for the requested Uniform.</summary>
         public void GetUniform(string name, out double data)
         {
             if (HasUniform(name))
@@ -961,21 +790,14 @@ vec3 perturb(vec3 c, vec3 randPoint, float scale){
                 data = 0;
         }
 
-        /// <summary>
-        /// Gets the Matrix4x4 value for the requested Uniform.
-        /// </summary>
-        /// <param name="name">The name of the Uniform (Variable) to get</param>
-        /// <param name="data">The data stored on the GPU or <see cref="Matrix4x4.Identit"/> if the Uniform doesn't exsist.</param>
+        /// <summary>Gets the Matrix4x4 value for the requested Uniform.</summary>
         public void GetUniform(string name, out Matrix4x4 data)
         {
             if (HasUniform(name))
             {
-                //ReadOnlySpan<float> matrices = new ReadOnlySpan<float>(data.ToArray());
-
                 GL.UseProgram(GLHandle);
 
                 float[] floats = new float[16];
-
                 GL.GetUniformfv(GLHandle, uniformLocations[name], out floats[0]);
 
                 if (floats == null || floats.Length < 16)
@@ -989,27 +811,19 @@ vec3 perturb(vec3 c, vec3 randPoint, float scale){
                     , floats[ 4], floats[ 5], floats[ 6], floats[ 7]
                     , floats[ 8], floats[ 9], floats[10], floats[11]
                     , floats[12], floats[13], floats[14], floats[15]);
-
             }
             else
                 data = Matrix4x4.Identity;
         }
 
-        /// <summary>
-        /// Gets the Matrix3x3 value for the requested Uniform.
-        /// </summary>
-        /// <param name="name">The name of the Uniform (Variable) to get</param>
-        /// <param name="data">The data stored on the GPU or <see cref="Matrix3x3.Identit"/> if the Uniform doesn't exsist.</param>
+        /// <summary>Gets the Matrix3x3 value for the requested Uniform.</summary>
         public void GetUniform(string name, out Matrix3x3 data)
         {
             if (HasUniform(name))
             {
-                //ReadOnlySpan<float> matrices = new ReadOnlySpan<float>(data.ToArray());
-
                 GL.UseProgram(GLHandle);
 
                 float[] floats = new float[16];
-
                 GL.GetUniformfv(GLHandle, uniformLocations[name], out floats[0]);
 
                 if (floats == null || floats.Length < 16)
@@ -1022,17 +836,12 @@ vec3 perturb(vec3 c, vec3 randPoint, float scale){
                       floats[0], floats[1], floats[2]
                     , floats[3], floats[4], floats[5]
                     , floats[6], floats[7], floats[8]);
-
             }
             else
                 data = Matrix3x3.Identity;
         }
 
-        /// <summary>
-        /// Gets the Vector3 value for the requested Uniform.
-        /// </summary>
-        /// <param name="name">The name of the Uniform (Variable) to get</param>
-        /// <param name="data">The data stored on the GPU or <see cref="Vector3.Zero"/> if the Uniform doesn't exsist.</param>
+        /// <summary>Gets the Vector3 value for the requested Uniform.</summary>
         public void GetUniform(string name, out Vector3 data)
         {
             if (HasUniform(name))
@@ -1041,8 +850,6 @@ vec3 perturb(vec3 c, vec3 randPoint, float scale){
 
                 float[] floats = new float[3];
                 GL.GetUniformfv(GLHandle, GL.GetUniformLocation(GLHandle, name + "[0]"), out floats[0]);
-                //GL.GetUniformfv(GLHandle, GL.GetUniformLocation(GLHandle, name + "[1]"), out floats[1]);
-                //GL.GetUniformfv(GLHandle, GL.GetUniformLocation(GLHandle, name + "[2]"), out floats[2]);
 
                 if (floats == null || floats.Length < 3)
                 {
@@ -1056,56 +863,37 @@ vec3 perturb(vec3 c, vec3 randPoint, float scale){
                 data = Vector3.Zero;
         }
 
-        /// <summary>
-        /// Gets the Vector2 value for the requested Uniform.
-        /// </summary>
-        /// <param name="name">The name of the Uniform (Variable) to get</param>
-        /// <param name="data">The data stored on the GPU or <see cref="Vector2.Zero"/> if the Uniform doesn't exsist.</param>
+        /// <summary>Gets the Vector2 value for the requested Uniform.</summary>
         public void GetUniform(string name, out Vector2 data)
         {
-
             if (HasUniform(name))
             {
                 GL.UseProgram(GLHandle);
 
                 float[] floats = new float[2];
                 GL.GetUniformfv(GLHandle, GL.GetUniformLocation(GLHandle, name + "[0]"), out floats[0]);
-                //GL.GetUniformfv(GLHandle, GL.GetUniformLocation(GLHandle, name + "[1]"), out floats[1]);
                 data = new Vector2(floats[0], floats[1]);
             }
             else
                 data = Vector2.Zero;
         }
 
-        /// <summary>
-        /// Gets the Vector4 value for the requested Uniform.
-        /// </summary>
-        /// <param name="name">The name of the Uniform (Variable) to get</param>
-        /// <param name="data">The data stored on the GPU or <see cref="Vector4.Zero"/> if the Uniform doesn't exsist.</param>
+        /// <summary>Gets the Vector4 value for the requested Uniform.</summary>
         public void GetUniform(string name, out Vector4 data)
         {
-
             if (HasUniform(name))
             {
                 GL.UseProgram(GLHandle);
 
                 float[] floats = new float[4];
                 GL.GetUniformfv(GLHandle, GL.GetUniformLocation(GLHandle, name + "[0]"), out floats[0]);
-                //GL.GetUniformfv(GLHandle, GL.GetUniformLocation(GLHandle, name + "[1]"), out floats[1]);
-                //GL.GetUniformfv(GLHandle, GL.GetUniformLocation(GLHandle, name + "[2]"), out floats[2]);
-                //GL.GetUniformfv(GLHandle, GL.GetUniformLocation(GLHandle, name + "[3]"), out floats[3]);
-
                 data = new Vector4(floats[0], floats[1], floats[2], floats[3]);
             }
             else
                 data = Vector4.Zero;
         }
 
-        /// <summary>
-        /// Gets the Quaternion value for the requested Uniform.
-        /// </summary>
-        /// <param name="name">The name of the Uniform (Variable) to get</param>
-        /// <param name="data">The data stored on the GPU or <see cref="Quaternion.Identity"/> if the Uniform doesn't exsist.</param>
+        /// <summary>Gets the Quaternion value for the requested Uniform.</summary>
         public void GetUniform(string name, out Quaternion data)
         {
             if (HasUniform(name))
@@ -1114,10 +902,6 @@ vec3 perturb(vec3 c, vec3 randPoint, float scale){
 
                 float[] floats = new float[4];
                 GL.GetUniformfv(GLHandle, GL.GetUniformLocation(GLHandle, name + "[0]"), out floats[0]);
-                //GL.GetUniformfv(GLHandle, GL.GetUniformLocation(GLHandle, name + "[1]"), out floats[1]);
-                //GL.GetUniformfv(GLHandle, GL.GetUniformLocation(GLHandle, name + "[2]"), out floats[2]);
-                //GL.GetUniformfv(GLHandle, GL.GetUniformLocation(GLHandle, name + "[3]"), out floats[3]);
-
                 data = new Quaternion(floats[0], floats[1], floats[2], floats[3]);
             }
             else
@@ -1133,15 +917,12 @@ vec3 perturb(vec3 c, vec3 randPoint, float scale){
 
         /// <summary>
         /// Releases the Shader from GPU Memory. 
-        /// Any future calls to this shader will crash and burn.
         /// </summary>
         public void Dispose()
         {
             if (isDisposed) return;
-
             GL.DeleteProgram(GLHandle);
             Shaders.Remove(this);
-
             isDisposed = true;
         }
 
@@ -1149,6 +930,5 @@ vec3 perturb(vec3 c, vec3 randPoint, float scale){
         {
             Dispose();
         }
-
     }
 }
